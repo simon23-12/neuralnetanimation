@@ -14,7 +14,7 @@ const CONFIG = {
     colors: {
         inputNeuronOn: 0x333333, // Swapped: "1" = dark/black
         inputNeuronOff: 0xffffff, // Swapped: "0" = white
-        hiddenNeurons: 0xffffff, // Changed from gray to white
+        hiddenNeurons: 0x666666, // Darker grey for base color
         outputNeurons: 0xffffff, // Changed from cyan to white
         connections: 0x333333, // Darker gray for connections
         pulseColor: 0xffffff // White pulse color (was cyan)
@@ -74,15 +74,15 @@ function init() {
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
     container.appendChild(renderer.domElement);
 
-    // Lights
+    // Lights - using white lights to avoid color tinting
     const ambientLight = new THREE.AmbientLight(0x404040, 1);
     scene.add(ambientLight);
 
-    const pointLight1 = new THREE.PointLight(0x00ffff, 1, 100);
+    const pointLight1 = new THREE.PointLight(0xffffff, 1, 100);
     pointLight1.position.set(10, 10, 10);
     scene.add(pointLight1);
 
-    const pointLight2 = new THREE.PointLight(0x0088ff, 0.5, 100);
+    const pointLight2 = new THREE.PointLight(0xffffff, 0.5, 100);
     pointLight2.position.set(-10, -10, -10);
     scene.add(pointLight2);
 
@@ -124,7 +124,7 @@ function createSharedResources() {
     sharedMaterials.hidden = new THREE.MeshPhongMaterial({
         color: CONFIG.colors.hiddenNeurons,
         emissive: CONFIG.colors.hiddenNeurons,
-        emissiveIntensity: 0.2,
+        emissiveIntensity: 0.1, // Dimmer base intensity
         shininess: 30
     });
 
@@ -230,8 +230,9 @@ function createLayer(neuronCount, x, layerIndex) {
             const y = (row - gridSize / 2) * spacing;
             const z = (col - gridSize / 2) * spacing;
 
-            // Reuse shared geometry and material
-            const neuron = new THREE.Mesh(sharedGeometries.hidden, sharedMaterials.hidden);
+            // Reuse shared geometry, but clone material for individual control
+            const material = sharedMaterials.hidden.clone();
+            const neuron = new THREE.Mesh(sharedGeometries.hidden, material);
             neuron.position.set(x, y, z);
             neuron.userData.phaseOffset = i * 0.05 + layerIndex; // Pre-calculate phase offset
             neuron.userData.randomFactor = Math.random(); // For thinking animation
@@ -452,7 +453,7 @@ function animate() {
             const neuron = layer[i];
 
             // Decay pulse intensity
-            neuron.userData.pulseIntensity *= 0.9;
+            neuron.userData.pulseIntensity *= 0.88;
 
             // Create wave patterns across the grid with random variations
             const wave1 = Math.sin(layerTime + neuron.userData.phaseOffset);
@@ -461,10 +462,15 @@ function animate() {
 
             // Combine waves for complex "thinking" pattern
             const thinking = (wave1 * 0.4 + wave2 * 0.3 + randomPulse * 0.3);
-            const baseIntensity = Math.max(0.05, thinking * 0.25 + 0.2);
+            const baseIntensity = Math.max(0.05, thinking * 0.15 + 0.1);
 
-            // Add pulse lighting
-            neuron.material.emissiveIntensity = Math.min(0.9, baseIntensity + neuron.userData.pulseIntensity);
+            // When hit by pulse, transition color from grey to bright white
+            const greyColor = new THREE.Color(CONFIG.colors.hiddenNeurons);
+            const whiteColor = new THREE.Color(0xffffff);
+            const pulseAmount = Math.min(1, neuron.userData.pulseIntensity);
+
+            neuron.material.emissive.copy(greyColor).lerp(whiteColor, pulseAmount);
+            neuron.material.emissiveIntensity = baseIntensity + pulseAmount * 1.2;
         }
     }
 
