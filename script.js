@@ -2,13 +2,15 @@ import * as THREE from 'three';
 
 // Neural Network Configuration
 const CONFIG = {
-    layers: [784, 10000, 10000, 10000, 10], // Input, hidden layers, output
+    layers: [16, 10000, 10000, 10000, 10], // Input (4x4), hidden layers, output
     layerSpacing: 3,
     neuronSize: 0.05,
+    hiddenNeuronSize: 0.03, // Smaller uniform size for hidden layers
     connectionOpacity: 0.15,
     connectionSampleRate: 0.02, // 2% of connections shown
     colors: {
-        inputNeurons: 0xffffff,
+        inputNeuronOn: 0xffffff,
+        inputNeuronOff: 0x333333,
         hiddenNeurons: 0x888888,
         outputNeurons: 0x0088ff,
         connections: 0x00ffff
@@ -92,42 +94,87 @@ function buildNeuralNetwork() {
 
 function createLayer(neuronCount, x, layerIndex, totalLayers) {
     const neurons = [];
-    let color;
 
-    // Determine neuron color based on layer type
+    // Input layer: 4x4 grid with alternating 0s and 1s
     if (layerIndex === 0) {
-        color = CONFIG.colors.inputNeurons;
-    } else if (layerIndex === totalLayers - 1) {
-        color = CONFIG.colors.outputNeurons;
-    } else {
-        color = CONFIG.colors.hiddenNeurons;
+        const gridSize = 4;
+        const spacing = 0.3;
+
+        for (let i = 0; i < 16; i++) {
+            const row = Math.floor(i / gridSize);
+            const col = i % gridSize;
+
+            // Checkerboard pattern for 0s and 1s
+            const isOne = (row + col) % 2 === 0;
+
+            const y = (row - gridSize / 2 + 0.5) * spacing;
+            const z = (col - gridSize / 2 + 0.5) * spacing;
+
+            const geometry = new THREE.SphereGeometry(CONFIG.neuronSize, 8, 8);
+            const material = new THREE.MeshPhongMaterial({
+                color: isOne ? CONFIG.colors.inputNeuronOn : CONFIG.colors.inputNeuronOff,
+                emissive: isOne ? CONFIG.colors.inputNeuronOn : CONFIG.colors.inputNeuronOff,
+                emissiveIntensity: isOne ? 0.5 : 0.1,
+                shininess: 30
+            });
+
+            const neuron = new THREE.Mesh(geometry, material);
+            neuron.position.set(x, y, z);
+            neuron.userData.isInputNeuron = true;
+            neuron.userData.isOne = isOne;
+            neuron.userData.baseIntensity = isOne ? 0.5 : 0.1;
+
+            scene.add(neuron);
+            neurons.push(neuron);
+        }
     }
+    // Hidden layers: uniform smaller neurons
+    else if (layerIndex < totalLayers - 1) {
+        const displayCount = Math.min(neuronCount, 1000);
+        const gridSize = Math.ceil(Math.sqrt(displayCount));
 
-    // For large layers, use instanced rendering for better performance
-    const displayCount = Math.min(neuronCount, 1000); // Limit visual neurons
-    const spacing = Math.sqrt(displayCount) * 0.15;
-    const gridSize = Math.ceil(Math.sqrt(displayCount));
+        for (let i = 0; i < displayCount; i++) {
+            const row = Math.floor(i / gridSize);
+            const col = i % gridSize;
 
-    for (let i = 0; i < displayCount; i++) {
-        const row = Math.floor(i / gridSize);
-        const col = i % gridSize;
+            const y = (row - gridSize / 2) * 0.15;
+            const z = (col - gridSize / 2) * 0.15;
 
-        const y = (row - gridSize / 2) * 0.15 + (Math.random() - 0.5) * 0.05;
-        const z = (col - gridSize / 2) * 0.15 + (Math.random() - 0.5) * 0.05;
+            const geometry = new THREE.SphereGeometry(CONFIG.hiddenNeuronSize, 6, 6);
+            const material = new THREE.MeshPhongMaterial({
+                color: CONFIG.colors.hiddenNeurons,
+                emissive: CONFIG.colors.hiddenNeurons,
+                emissiveIntensity: 0.2,
+                shininess: 30
+            });
 
-        const geometry = new THREE.SphereGeometry(CONFIG.neuronSize, 8, 8);
-        const material = new THREE.MeshPhongMaterial({
-            color: color,
-            emissive: color,
-            emissiveIntensity: 0.3,
-            shininess: 30
-        });
+            const neuron = new THREE.Mesh(geometry, material);
+            neuron.position.set(x, y, z);
 
-        const neuron = new THREE.Mesh(geometry, material);
-        neuron.position.set(x, y, z);
+            scene.add(neuron);
+            neurons.push(neuron);
+        }
+    }
+    // Output layer
+    else {
+        const spacing = 0.2;
+        for (let i = 0; i < neuronCount; i++) {
+            const y = (i - neuronCount / 2 + 0.5) * spacing;
 
-        scene.add(neuron);
-        neurons.push(neuron);
+            const geometry = new THREE.SphereGeometry(CONFIG.neuronSize, 8, 8);
+            const material = new THREE.MeshPhongMaterial({
+                color: CONFIG.colors.outputNeurons,
+                emissive: CONFIG.colors.outputNeurons,
+                emissiveIntensity: 0.3,
+                shininess: 30
+            });
+
+            const neuron = new THREE.Mesh(geometry, material);
+            neuron.position.set(x, y, 0);
+
+            scene.add(neuron);
+            neurons.push(neuron);
+        }
     }
 
     return neurons;
@@ -161,7 +208,7 @@ function createConnections(fromLayer, toLayer, sampleRate) {
 function animate() {
     requestAnimationFrame(animate);
 
-    // Rotate camera around the scene
+    // Rotate camera around the scene (always active, regardless of connection visibility)
     if (isRotating) {
         const radius = Math.sqrt(
             camera.position.x ** 2 + camera.position.z ** 2
@@ -174,13 +221,33 @@ function animate() {
         camera.lookAt(0, 0, 0);
     }
 
-    // Subtle pulsing effect on neurons
     const time = Date.now() * 0.001;
-    neuronMeshes.forEach((layer, layerIndex) => {
-        layer.forEach((neuron, neuronIndex) => {
-            const pulse = Math.sin(time + neuronIndex * 0.1 + layerIndex) * 0.3 + 0.7;
-            neuron.material.emissiveIntensity = pulse * 0.3;
+
+    // Periodic flashing effect for input neurons (alternating 0s and 1s)
+    if (neuronMeshes.length > 0) {
+        neuronMeshes[0].forEach((neuron) => {
+            if (neuron.userData.isInputNeuron) {
+                if (neuron.userData.isOne) {
+                    // "1" neurons flash periodically
+                    const flash = Math.sin(time * 2) * 0.3 + 0.7;
+                    neuron.material.emissiveIntensity = flash * 0.6;
+                } else {
+                    // "0" neurons stay dim with subtle pulse
+                    const pulse = Math.sin(time * 0.5) * 0.05 + 0.1;
+                    neuron.material.emissiveIntensity = pulse;
+                }
+            }
         });
+    }
+
+    // Subtle pulsing effect on hidden and output neurons
+    neuronMeshes.forEach((layer, layerIndex) => {
+        if (layerIndex > 0) { // Skip input layer
+            layer.forEach((neuron, neuronIndex) => {
+                const pulse = Math.sin(time + neuronIndex * 0.1 + layerIndex) * 0.15 + 0.2;
+                neuron.material.emissiveIntensity = pulse;
+            });
+        }
     });
 
     renderer.render(scene, camera);
