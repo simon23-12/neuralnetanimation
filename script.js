@@ -13,7 +13,7 @@ const CONFIG = {
         inputNeuronOff: 0x333333,
         hiddenNeurons: 0x888888,
         outputNeurons: 0x0088ff,
-        connections: 0x00ffff
+        connections: 0x666666 // Gray color for connections
     }
 };
 
@@ -23,7 +23,7 @@ let neuronMeshes = [];
 let connectionLines = [];
 let isRotating = true;
 let showConnections = true;
-let rotationSpeed = 0.0005;
+let rotationSpeed = 0.002; // 4x faster (was 0.0005)
 
 function init() {
     // Scene
@@ -200,6 +200,9 @@ function createConnections(fromLayer, toLayer, sampleRate) {
         });
 
         const line = new THREE.Line(geometry, material);
+        line.userData.baseOpacity = CONFIG.connectionOpacity;
+        line.userData.flashOffset = Math.random() * Math.PI * 2; // Random phase for flashing
+
         scene.add(line);
         connectionLines.push(line);
     }
@@ -250,6 +253,22 @@ function animate() {
         }
     });
 
+    // Periodic flashing effect on connections to simulate neural activity
+    connectionLines.forEach((line) => {
+        if (line.visible) {
+            // Create random flashing patterns
+            const flashSpeed = 3;
+            const flash = Math.sin(time * flashSpeed + line.userData.flashOffset);
+
+            // Only some connections flash at a time (creates wave effect)
+            if (flash > 0.7) {
+                line.material.opacity = CONFIG.connectionOpacity + (flash - 0.7) * 0.5;
+            } else {
+                line.material.opacity = CONFIG.connectionOpacity;
+            }
+        }
+    });
+
     renderer.render(scene, camera);
 }
 
@@ -281,6 +300,21 @@ function setupControls() {
             line.visible = showConnections;
         });
     });
+
+    // Toggle music
+    const music = document.getElementById('background-music');
+    document.getElementById('toggleMusic').addEventListener('click', () => {
+        if (music.paused) {
+            music.play();
+            document.getElementById('toggleMusic').textContent = 'Mute Music';
+        } else {
+            music.pause();
+            document.getElementById('toggleMusic').textContent = 'Play Music';
+        }
+    });
+
+    // Auto-play music (some browsers require user interaction)
+    music.volume = 0.5; // Set volume to 50%
 
     // Mouse interaction for manual rotation
     let isDragging = false;
