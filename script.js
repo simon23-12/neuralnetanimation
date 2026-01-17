@@ -8,6 +8,9 @@ const CONFIG = {
     hiddenNeuronSize: 0.03, // Smaller uniform size for hidden layers
     connectionOpacity: 0.15,
     connectionSampleRate: 0.02, // 2% of connections shown
+    // Performance settings
+    neuronSegments: 4, // Low-poly spheres for better performance (was 8)
+    hiddenNeuronSegments: 3, // Even lower for hidden neurons (was 6)
     colors: {
         inputNeuronOn: 0xffffff,
         inputNeuronOff: 0x333333,
@@ -24,6 +27,13 @@ let connectionLines = [];
 let isRotating = true;
 let showConnections = true;
 let rotationSpeed = 0.002; // 4x faster (was 0.0005)
+
+// Shared geometries and materials for performance
+let sharedGeometries = {};
+let sharedMaterials = {};
+
+// Animation time
+let animationTime = 0;
 
 function init() {
     // Scene
@@ -43,9 +53,12 @@ function init() {
     camera.lookAt(0, 0, 0);
 
     // Renderer
-    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer = new THREE.WebGLRenderer({
+        antialias: false, // Disable for better performance
+        powerPreference: "high-performance"
+    });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Cap at 2x for performance
     container.appendChild(renderer.domElement);
 
     // Lights
@@ -60,6 +73,9 @@ function init() {
     pointLight2.position.set(-10, -10, -10);
     scene.add(pointLight2);
 
+    // Create shared geometries and materials
+    createSharedResources();
+
     // Build neural network
     buildNeuralNetwork();
 
@@ -69,6 +85,48 @@ function init() {
 
     // Start animation
     animate();
+}
+
+function createSharedResources() {
+    // Shared geometries (reused across all neurons of same type)
+    sharedGeometries.input = new THREE.SphereGeometry(CONFIG.neuronSize, CONFIG.neuronSegments, CONFIG.neuronSegments);
+    sharedGeometries.hidden = new THREE.SphereGeometry(CONFIG.hiddenNeuronSize, CONFIG.hiddenNeuronSegments, CONFIG.hiddenNeuronSegments);
+    sharedGeometries.output = new THREE.SphereGeometry(CONFIG.neuronSize, CONFIG.neuronSegments, CONFIG.neuronSegments);
+
+    // Shared materials
+    sharedMaterials.inputOn = new THREE.MeshPhongMaterial({
+        color: CONFIG.colors.inputNeuronOn,
+        emissive: CONFIG.colors.inputNeuronOn,
+        emissiveIntensity: 0.5,
+        shininess: 30
+    });
+
+    sharedMaterials.inputOff = new THREE.MeshPhongMaterial({
+        color: CONFIG.colors.inputNeuronOff,
+        emissive: CONFIG.colors.inputNeuronOff,
+        emissiveIntensity: 0.1,
+        shininess: 30
+    });
+
+    sharedMaterials.hidden = new THREE.MeshPhongMaterial({
+        color: CONFIG.colors.hiddenNeurons,
+        emissive: CONFIG.colors.hiddenNeurons,
+        emissiveIntensity: 0.2,
+        shininess: 30
+    });
+
+    sharedMaterials.output = new THREE.MeshPhongMaterial({
+        color: CONFIG.colors.outputNeurons,
+        emissive: CONFIG.colors.outputNeurons,
+        emissiveIntensity: 0.3,
+        shininess: 30
+    });
+
+    sharedMaterials.connection = new THREE.LineBasicMaterial({
+        color: CONFIG.colors.connections,
+        opacity: CONFIG.connectionOpacity,
+        transparent: true
+    });
 }
 
 function buildNeuralNetwork() {
@@ -110,15 +168,11 @@ function createLayer(neuronCount, x, layerIndex, totalLayers) {
             const y = (row - gridSize / 2 + 0.5) * spacing;
             const z = (col - gridSize / 2 + 0.5) * spacing;
 
-            const geometry = new THREE.SphereGeometry(CONFIG.neuronSize, 8, 8);
-            const material = new THREE.MeshPhongMaterial({
-                color: isOne ? CONFIG.colors.inputNeuronOn : CONFIG.colors.inputNeuronOff,
-                emissive: isOne ? CONFIG.colors.inputNeuronOn : CONFIG.colors.inputNeuronOff,
-                emissiveIntensity: isOne ? 0.5 : 0.1,
-                shininess: 30
-            });
-
-            const neuron = new THREE.Mesh(geometry, material);
+            // Reuse shared geometry and material
+            const neuron = new THREE.Mesh(
+                sharedGeometries.input,
+                isOne ? sharedMaterials.inputOn : sharedMaterials.inputOff
+            );
             neuron.position.set(x, y, z);
             neuron.userData.isInputNeuron = true;
             neuron.userData.isOne = isOne;
@@ -140,16 +194,10 @@ function createLayer(neuronCount, x, layerIndex, totalLayers) {
             const y = (row - gridSize / 2) * 0.15;
             const z = (col - gridSize / 2) * 0.15;
 
-            const geometry = new THREE.SphereGeometry(CONFIG.hiddenNeuronSize, 6, 6);
-            const material = new THREE.MeshPhongMaterial({
-                color: CONFIG.colors.hiddenNeurons,
-                emissive: CONFIG.colors.hiddenNeurons,
-                emissiveIntensity: 0.2,
-                shininess: 30
-            });
-
-            const neuron = new THREE.Mesh(geometry, material);
+            // Reuse shared geometry and material
+            const neuron = new THREE.Mesh(sharedGeometries.hidden, sharedMaterials.hidden);
             neuron.position.set(x, y, z);
+            neuron.userData.phaseOffset = i * 0.1 + layerIndex; // Pre-calculate phase offset
 
             scene.add(neuron);
             neurons.push(neuron);
@@ -161,16 +209,10 @@ function createLayer(neuronCount, x, layerIndex, totalLayers) {
         for (let i = 0; i < neuronCount; i++) {
             const y = (i - neuronCount / 2 + 0.5) * spacing;
 
-            const geometry = new THREE.SphereGeometry(CONFIG.neuronSize, 8, 8);
-            const material = new THREE.MeshPhongMaterial({
-                color: CONFIG.colors.outputNeurons,
-                emissive: CONFIG.colors.outputNeurons,
-                emissiveIntensity: 0.3,
-                shininess: 30
-            });
-
-            const neuron = new THREE.Mesh(geometry, material);
+            // Reuse shared geometry and material
+            const neuron = new THREE.Mesh(sharedGeometries.output, sharedMaterials.output);
             neuron.position.set(x, y, 0);
+            neuron.userData.phaseOffset = i * 0.1 + layerIndex; // Pre-calculate phase offset
 
             scene.add(neuron);
             neurons.push(neuron);
@@ -193,11 +235,9 @@ function createConnections(fromLayer, toLayer, sampleRate) {
         ];
 
         const geometry = new THREE.BufferGeometry().setFromPoints(points);
-        const material = new THREE.LineBasicMaterial({
-            color: CONFIG.colors.connections,
-            opacity: CONFIG.connectionOpacity,
-            transparent: true
-        });
+
+        // Clone shared material for individual opacity control
+        const material = sharedMaterials.connection.clone();
 
         const line = new THREE.Line(geometry, material);
         line.userData.baseOpacity = CONFIG.connectionOpacity;
@@ -210,6 +250,9 @@ function createConnections(fromLayer, toLayer, sampleRate) {
 
 function animate() {
     requestAnimationFrame(animate);
+
+    // Increment animation time (more efficient than Date.now())
+    animationTime += 0.016; // ~60fps
 
     // Rotate camera around the scene (always active, regardless of connection visibility)
     if (isRotating) {
@@ -224,50 +267,50 @@ function animate() {
         camera.lookAt(0, 0, 0);
     }
 
-    const time = Date.now() * 0.001;
+    // Pre-calculate common sin values
+    const time2 = Math.sin(animationTime * 2);
+    const time05 = Math.sin(animationTime * 0.5);
 
     // Periodic flashing effect for input neurons (alternating 0s and 1s)
     if (neuronMeshes.length > 0) {
-        neuronMeshes[0].forEach((neuron) => {
-            if (neuron.userData.isInputNeuron) {
-                if (neuron.userData.isOne) {
-                    // "1" neurons flash periodically
-                    const flash = Math.sin(time * 2) * 0.3 + 0.7;
-                    neuron.material.emissiveIntensity = flash * 0.6;
-                } else {
-                    // "0" neurons stay dim with subtle pulse
-                    const pulse = Math.sin(time * 0.5) * 0.05 + 0.1;
-                    neuron.material.emissiveIntensity = pulse;
-                }
+        const inputLayer = neuronMeshes[0];
+        for (let i = 0; i < inputLayer.length; i++) {
+            const neuron = inputLayer[i];
+            if (neuron.userData.isOne) {
+                // "1" neurons flash periodically
+                neuron.material.emissiveIntensity = (time2 * 0.3 + 0.7) * 0.6;
+            } else {
+                // "0" neurons stay dim with subtle pulse
+                neuron.material.emissiveIntensity = time05 * 0.05 + 0.1;
             }
-        });
+        }
     }
 
     // Subtle pulsing effect on hidden and output neurons
-    neuronMeshes.forEach((layer, layerIndex) => {
-        if (layerIndex > 0) { // Skip input layer
-            layer.forEach((neuron, neuronIndex) => {
-                const pulse = Math.sin(time + neuronIndex * 0.1 + layerIndex) * 0.15 + 0.2;
-                neuron.material.emissiveIntensity = pulse;
-            });
+    for (let layerIndex = 1; layerIndex < neuronMeshes.length; layerIndex++) {
+        const layer = neuronMeshes[layerIndex];
+        for (let i = 0; i < layer.length; i++) {
+            const neuron = layer[i];
+            // Use pre-calculated phase offset from userData
+            const pulse = Math.sin(animationTime + neuron.userData.phaseOffset) * 0.15 + 0.2;
+            neuron.material.emissiveIntensity = pulse;
         }
-    });
+    }
 
-    // Periodic flashing effect on connections to simulate neural activity
-    connectionLines.forEach((line) => {
-        if (line.visible) {
-            // Create random flashing patterns
-            const flashSpeed = 3;
-            const flash = Math.sin(time * flashSpeed + line.userData.flashOffset);
-
-            // Only some connections flash at a time (creates wave effect)
-            if (flash > 0.7) {
-                line.material.opacity = CONFIG.connectionOpacity + (flash - 0.7) * 0.5;
-            } else {
-                line.material.opacity = CONFIG.connectionOpacity;
+    // Optimize connection flashing - only update visible connections, skip every other frame
+    if (Math.floor(animationTime * 60) % 2 === 0) {
+        const flashSpeed = 3;
+        for (let i = 0; i < connectionLines.length; i++) {
+            const line = connectionLines[i];
+            if (line.visible) {
+                const flash = Math.sin(animationTime * flashSpeed + line.userData.flashOffset);
+                // Only some connections flash at a time (creates wave effect)
+                line.material.opacity = flash > 0.7
+                    ? CONFIG.connectionOpacity + (flash - 0.7) * 0.5
+                    : CONFIG.connectionOpacity;
             }
         }
-    });
+    }
 
     renderer.render(scene, camera);
 }
