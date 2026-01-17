@@ -1,3 +1,5 @@
+import * as THREE from 'three';
+
 // Neural Network Configuration
 const CONFIG = {
     layers: [784, 10000, 10000, 10000, 10], // Input, hidden layers, output
