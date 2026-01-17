@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Network 3D Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        #info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 5px;
+            font-size: 14px;
+            line-height: 1.8;
+            z-index: 10;
+        }
+
+        #info-panel h1 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+
+        #controls button {
+            background: #333;
+            color: #0ff;
+            border: 1px solid #0ff;
+            padding: 8px 15px;
+            margin-right: 10px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        #controls button:hover {
+            background: #0ff;
+            color: #000;
+        }
+
+        .highlight {
+            color: #0ff;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container">
+        <div id="info-panel">
+            <h1>Type: ML Perceptron</h1>
+            <div>Data Set: <span class="highlight">MNIST</span></div>
+            <div>Hidden Layers: <span class="highlight">3</span></div>
+            <div>Hidden Neurons: <span class="highlight">10000</span></div>
+            <div>Synapses: <span class="highlight">24864180</span></div>
+            <div>Synapses shown: <span class="highlight">2%</span></div>
+            <div>Learning: <span class="highlight">BP</span></div>
+        </div>
+
+        <div id="controls">
+            <button id="toggleRotation">Pause Rotation</button>
+            <button id="resetCamera">Reset Camera</button>
+            <button id="toggleConnections">Toggle Connections</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r152/three.min.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
