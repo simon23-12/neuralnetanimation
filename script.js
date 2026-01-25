@@ -524,44 +524,11 @@ function onWindowResize() {
 }
 
 function setupControls() {
-    // Toggle rotation
-    document.getElementById('toggleRotation').addEventListener('click', () => {
-        isRotating = !isRotating;
-        document.getElementById('toggleRotation').textContent =
-            isRotating ? 'Pause Rotation' : 'Resume Rotation';
-    });
-
-    // Reset camera
-    document.getElementById('resetCamera').addEventListener('click', () => {
-        camera.position.set(8, 3, 8);
-        camera.lookAt(0, 0, 0);
-    });
-
-    // Toggle connections
-    document.getElementById('toggleConnections').addEventListener('click', () => {
-        showConnections = !showConnections;
-        connectionLines.forEach(line => {
-            line.visible = showConnections;
-        });
-    });
-
-    // Toggle music
-    const music = document.getElementById('background-music');
-    document.getElementById('toggleMusic').addEventListener('click', () => {
-        if (music.paused) {
-            music.play();
-            document.getElementById('toggleMusic').textContent = 'Mute Music';
-        } else {
-            music.pause();
-            document.getElementById('toggleMusic').textContent = 'Play Music';
-        }
-    });
-
     // Auto-play music (some browsers require user interaction)
+    const music = document.getElementById('background-music');
     music.volume = 0.5; // Set volume to 50%
     music.play().catch(err => {
         console.log('Autoplay prevented by browser:', err);
-        // Music will play when user clicks any control button
     });
 
     // Mouse interaction for manual rotation
