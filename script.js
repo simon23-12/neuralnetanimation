@@ -39,7 +39,7 @@ let animationTime = 0;
 let lastPulseTime = 0;
 
 // Camera control state - start closer to the model
-let targetCameraDistance = 6; // Closer initial zoom (was ~11.5)
+let targetCameraDistance = 10; // Zoomed out to see complete model
 let currentCameraDistance = targetCameraDistance;
 
 function init() {
